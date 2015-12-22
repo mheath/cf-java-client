@@ -16,9 +16,6 @@
 
 package org.cloudfoundry.operations;
 
-import org.cloudfoundry.client.v2.Resource;
-import org.cloudfoundry.client.v2.applications.ApplicationEntity;
-import org.cloudfoundry.client.v2.applications.GetApplicationResponse;
 import org.cloudfoundry.client.v2.spaces.GetSpaceSummaryRequest;
 import org.cloudfoundry.client.v2.spaces.GetSpaceSummaryResponse;
 import org.cloudfoundry.client.v2.spaces.SpaceApplicationSummary;
@@ -34,18 +31,18 @@ public final class DefaultApplicationsTest {
 
     public static final class List extends AbstractOperationsApiTest<Application> {
 
-        private final DefaultApplications applications = new DefaultApplications(this.cloudFoundryClient, Streams.just(TEST_SPACE));
+        private final DefaultApplications applications = new DefaultApplications(this.cloudFoundryClient, Streams.just(TEST_SPACE_ID));
 
         @Before
         public void setUp() throws Exception {
             GetSpaceSummaryRequest request = GetSpaceSummaryRequest.builder()
-                    .id(TEST_SPACE)
+                    .id(TEST_SPACE_ID)
                     .build();
 
             GetSpaceSummaryResponse response = GetSpaceSummaryResponse.builder()
-                    .id(TEST_SPACE)
+                    .id(TEST_SPACE_ID)
                     .application(SpaceApplicationSummary.builder()
-                            .spaceId(TEST_SPACE)
+                            .spaceId(TEST_SPACE_ID)
                             .diskQuota(1073741824)
                             .id("test-id-1")
                             .instances(2)
@@ -56,7 +53,7 @@ public final class DefaultApplicationsTest {
                             .url("foo.com")
                             .build())
                     .application(SpaceApplicationSummary.builder()
-                            .spaceId(TEST_SPACE)
+                            .spaceId(TEST_SPACE_ID)
                             .diskQuota(1073741824)
                             .id("test-id-2")
                             .instances(2)

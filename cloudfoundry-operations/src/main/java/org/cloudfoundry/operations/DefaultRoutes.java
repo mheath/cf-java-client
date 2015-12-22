@@ -23,6 +23,8 @@ import org.cloudfoundry.client.v2.domains.GetDomainRequest;
 import org.cloudfoundry.client.v2.domains.GetDomainResponse;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationPrivateDomainsRequest;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationPrivateDomainsResponse;
+import org.cloudfoundry.client.v2.organizations.ListOrganizationSpacesResponse;
+import org.cloudfoundry.client.v2.routes.CreateRouteResponse;
 import org.cloudfoundry.client.v2.routes.ListRouteApplicationsRequest;
 import org.cloudfoundry.client.v2.routes.ListRouteApplicationsResponse;
 import org.cloudfoundry.client.v2.routes.ListRoutesResponse;
@@ -66,10 +68,20 @@ final class DefaultRoutes implements Routes {
         return Validators
                 .stream(request)
                 .zipWith(this.organizationId)
-                .flatMap(requestDomainId(this.cloudFoundryClient))
+                .flatMap(requestDomainIdCheckRoute(this.cloudFoundryClient))
                 .flatMap(requestCheckRoute(this.cloudFoundryClient))
                 .defaultIfEmpty(false)
                 .take(1);  // TODO: Remove after switchIfEmpty() propagates onComplete() in a non-empty case
+    }
+
+    public Publisher<Void> create(CreateRouteRequest request) {
+        return Validators
+                .stream(request)
+                .zipWith(this.organizationId)
+                .flatMap(requestOrganizationSpaceId(this.cloudFoundryClient))
+                .flatMap(requestDomainIdCreateRoute(this.cloudFoundryClient))
+                .flatMap(requestCreateRoute(this.cloudFoundryClient))
+                .after();
     }
 
     @Override
@@ -189,7 +201,28 @@ final class DefaultRoutes implements Routes {
         };
     }
 
-    private static Function<Tuple2<CheckRouteRequest, String>, Publisher<Tuple2<String, CheckRouteRequest>>> requestDomainId(final CloudFoundryClient cloudFoundryClient) {
+    private static Function<Tuple3<String, String, CreateRouteRequest>, Publisher<CreateRouteResponse>> requestCreateRoute(final CloudFoundryClient cloudFoundryClient) {
+        return new Function<Tuple3<String, String, CreateRouteRequest>, Publisher<CreateRouteResponse>>() {
+
+            @Override
+            public Publisher<CreateRouteResponse> apply(Tuple3<String, String, CreateRouteRequest> tuple) {
+                String domainId = tuple.t1;
+                String spaceId = tuple.t2;
+                CreateRouteRequest createRouteRequest = tuple.t3;
+
+                org.cloudfoundry.client.v2.routes.CreateRouteRequest request = org.cloudfoundry.client.v2.routes.CreateRouteRequest.builder()
+                        .domainId(domainId)
+                        .host(createRouteRequest.getHost())
+                        .spaceId(spaceId)
+                        .build();
+
+                return cloudFoundryClient.routes().create(request);
+            }
+
+        };
+    }
+
+    private static Function<Tuple2<CheckRouteRequest, String>, Publisher<Tuple2<String, CheckRouteRequest>>> requestDomainIdCheckRoute(final CloudFoundryClient cloudFoundryClient) {
         return new Function<Tuple2<CheckRouteRequest, String>, Publisher<Tuple2<String, CheckRouteRequest>>>() {
 
             @Override
@@ -201,6 +234,30 @@ final class DefaultRoutes implements Routes {
                         .switchIfEmpty(requestSharedDomains(cloudFoundryClient, request.getDomain()))
                         .map(Resources.extractId())
                         .zipWith(Publishers.just(request));
+            }
+
+        };
+    }
+
+    private static Function<Tuple3<String, String, CreateRouteRequest>, Publisher<Tuple3<String, String, CreateRouteRequest>>> requestDomainIdCreateRoute(final CloudFoundryClient cloudFoundryClient) {
+        return new Function<Tuple3<String, String, CreateRouteRequest>, Publisher<Tuple3<String, String, CreateRouteRequest>>>() {
+
+            @Override
+            public Publisher<Tuple3<String, String, CreateRouteRequest>> apply(Tuple3<String, String, CreateRouteRequest> tuple) {
+                String spaceId = tuple.t1;
+                String organizationId = tuple.t2;
+                CreateRouteRequest request = tuple.t3;
+
+                return Streams.zip(requestPrivateDomains(cloudFoundryClient, request.getDomain(), organizationId)
+                                .switchIfEmpty(requestSharedDomains(cloudFoundryClient, request.getDomain()))
+                                .map(Resources.extractId()),
+                        Publishers.just(spaceId),
+                        Publishers.just(request));
+
+//                return requestPrivateDomains(cloudFoundryClient, request.getDomain(), organizationId)
+//                        .switchIfEmpty(requestSharedDomains(cloudFoundryClient, request.getDomain()))
+//                        .map(Resources.extractId())
+//                        .zipWith(Publishers.just(request));
             }
 
         };
@@ -233,13 +290,53 @@ final class DefaultRoutes implements Routes {
         };
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends Resource<?>> Stream<T> requestPrivateDomains(final CloudFoundryClient cloudFoundryClient, String domain, String organizationId) {
-        return (Stream<T>) Paginated.requestResources(requestPrivateDomainsPage(cloudFoundryClient, organizationId, domain));
+    private static Function<Tuple2<CreateRouteRequest, String>, Publisher<Tuple3<String, String, CreateRouteRequest>>> requestOrganizationSpaceId(final CloudFoundryClient cloudFoundryClient) {
+        return new Function<Tuple2<CreateRouteRequest, String>, Publisher<Tuple3<String, String, CreateRouteRequest>>>() {
+
+            @Override
+            public Publisher<Tuple3<String, String, CreateRouteRequest>> apply(Tuple2<CreateRouteRequest, String> tuple) {
+                CreateRouteRequest request = tuple.t1;
+                String organizationId = tuple.t2;
+
+                return Streams.zip(Paginated.requestResources(requestOrganizationSpaceIdPage(cloudFoundryClient, organizationId, request.getSpace()))
+                                .map(Resources.extractId()),
+                        Publishers.just(organizationId),
+                        Publishers.just(request));
+
+//                return Paginated.requestResources(requestOrganizationSpaceIdPage(cloudFoundryClient, organizationId, request.getSpace()))
+//                        .map(Resources.extractId())
+//                        .zipWith(Publishers.just(organizationId))
+//                        .zipWith(Publishers.just(request));
+            }
+
+        };
     }
 
-    private static Function<Integer, Publisher<ListOrganizationPrivateDomainsResponse>> requestPrivateDomainsPage(final CloudFoundryClient cloudFoundryClient, final String organizationId, final
-    String domain) {
+    private static Function<Integer, Publisher<ListOrganizationSpacesResponse>> requestOrganizationSpaceIdPage(final CloudFoundryClient cloudFoundryClient, final String organizationId, final String
+            spaceName) {
+        return new Function<Integer, Publisher<ListOrganizationSpacesResponse>>() {
+
+            @Override
+            public Publisher<ListOrganizationSpacesResponse> apply(Integer page) {
+                org.cloudfoundry.client.v2.organizations.ListOrganizationSpacesRequest request = org.cloudfoundry.client.v2.organizations.ListOrganizationSpacesRequest.builder()
+                        .id(organizationId)
+                        .name(spaceName)
+                        .page(page)
+                        .build();
+
+                return cloudFoundryClient.organizations().listSpaces(request);
+            }
+
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Resource<?>> Stream<T> requestPrivateDomains(final CloudFoundryClient cloudFoundryClient, String domain, String organizationId) {
+        return (Stream<T>) Paginated.requestResources(requestPrivateDomainsPage(cloudFoundryClient, domain, organizationId));
+    }
+
+    private static Function<Integer, Publisher<ListOrganizationPrivateDomainsResponse>> requestPrivateDomainsPage(final CloudFoundryClient cloudFoundryClient, final String domain, final String
+            organizationId) {
         return new Function<Integer, Publisher<ListOrganizationPrivateDomainsResponse>>() {
 
             @Override

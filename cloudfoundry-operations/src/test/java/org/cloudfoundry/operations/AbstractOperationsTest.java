@@ -20,10 +20,10 @@ import org.cloudfoundry.client.CloudFoundryClient;
 import org.cloudfoundry.client.v2.applications.ApplicationsV2;
 import org.cloudfoundry.client.v2.domains.Domains;
 import org.cloudfoundry.client.v2.organizations.Organizations;
+import org.cloudfoundry.client.v2.routes.Routes;
 import org.cloudfoundry.client.v2.shareddomains.SharedDomains;
 import org.cloudfoundry.client.v2.spacequotadefinitions.SpaceQuotaDefinitions;
 import org.cloudfoundry.client.v2.spaces.Spaces;
-import org.cloudfoundry.client.v2.routes.Routes;
 import org.junit.Before;
 import reactor.rx.Stream;
 import reactor.rx.Streams;
@@ -36,9 +36,13 @@ public abstract class AbstractOperationsTest {
 
     protected static final Stream<String> MISSING_ID = Streams.fail(new java.lang.IllegalStateException());
 
-    protected static final String TEST_ORGANIZATION = "test-organization-id";
+    protected static final String TEST_ORGANIZATION_ID = "test-organization-id";
 
-    protected static final String TEST_SPACE = "test-space-id";
+    protected static final String TEST_ORGANIZATION_NAME = "test-organization-name";
+
+    protected static final String TEST_SPACE_ID = "test-space-id";
+
+    protected static final String TEST_SPACE_NAME = "test-space-name";
 
     protected final ApplicationsV2 applications = mock(ApplicationsV2.class, RETURNS_SMART_NULLS);
 

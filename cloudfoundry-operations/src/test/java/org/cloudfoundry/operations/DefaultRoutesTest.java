@@ -24,7 +24,10 @@ import org.cloudfoundry.client.v2.domains.GetDomainRequest;
 import org.cloudfoundry.client.v2.domains.GetDomainResponse;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationPrivateDomainsRequest;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationPrivateDomainsResponse;
+import org.cloudfoundry.client.v2.organizations.ListOrganizationSpacesRequest;
+import org.cloudfoundry.client.v2.organizations.ListOrganizationSpacesResponse;
 import org.cloudfoundry.client.v2.privatedomains.PrivateDomainResource;
+import org.cloudfoundry.client.v2.routes.CreateRouteResponse;
 import org.cloudfoundry.client.v2.routes.ListRouteApplicationsRequest;
 import org.cloudfoundry.client.v2.routes.ListRouteApplicationsResponse;
 import org.cloudfoundry.client.v2.routes.ListRoutesResponse;
@@ -39,6 +42,7 @@ import org.cloudfoundry.client.v2.spaces.GetSpaceResponse;
 import org.cloudfoundry.client.v2.spaces.ListSpaceRoutesRequest;
 import org.cloudfoundry.client.v2.spaces.ListSpaceRoutesResponse;
 import org.cloudfoundry.client.v2.spaces.SpaceEntity;
+import org.cloudfoundry.client.v2.spaces.SpaceResource;
 import org.cloudfoundry.utils.test.TestSubscriber;
 import org.junit.Before;
 import org.reactivestreams.Publisher;
@@ -51,12 +55,12 @@ public final class DefaultRoutesTest {
 
     public static final class CheckRouteInvalidDomain extends AbstractOperationsApiTest<Boolean> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), MISSING_ID);
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
 
         @Before
         public void setUp() throws Exception {
             ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
-                    .id(TEST_ORGANIZATION)
+                    .id(TEST_ORGANIZATION_ID)
                     .name("test-domain")
                     .page(1)
                     .build();
@@ -95,12 +99,12 @@ public final class DefaultRoutesTest {
 
     public static final class CheckRouteInvalidHost extends AbstractOperationsApiTest<Boolean> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), MISSING_ID);
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
 
         @Before
         public void setUp() throws Exception {
             ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
-                    .id(TEST_ORGANIZATION)
+                    .id(TEST_ORGANIZATION_ID)
                     .name("test-domain")
                     .page(1)
                     .build();
@@ -163,12 +167,12 @@ public final class DefaultRoutesTest {
 
     public static final class CheckRoutePrivateDomain extends AbstractOperationsApiTest<Boolean> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), MISSING_ID);
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
 
         @Before
         public void setUp() throws Exception {
             ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
-                    .id(TEST_ORGANIZATION)
+                    .id(TEST_ORGANIZATION_ID)
                     .name("test-domain")
                     .page(1)
                     .build();
@@ -209,12 +213,12 @@ public final class DefaultRoutesTest {
 
     public static final class CheckRouteSharedDomain extends AbstractOperationsApiTest<Boolean> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), MISSING_ID);
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
 
         @Before
         public void setUp() throws Exception {
             ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
-                    .id(TEST_ORGANIZATION)
+                    .id(TEST_ORGANIZATION_ID)
                     .name("test-domain")
                     .page(1)
                     .build();
@@ -262,9 +266,321 @@ public final class DefaultRoutesTest {
 
     }
 
+    public static final class CreateRouteInvalidDomain extends AbstractOperationsApiTest<Void> {
+
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
+
+        @Before
+        public void setUp() throws Exception {
+            ListOrganizationSpacesRequest request0 = ListOrganizationSpacesRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name(TEST_SPACE_NAME)
+                    .page(1)
+                    .build();
+            ListOrganizationSpacesResponse response0 = ListOrganizationSpacesResponse.builder()
+                    .resource(SpaceResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id(TEST_SPACE_ID)
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listSpaces(request0)).thenReturn(Publishers.just(response0));
+
+            ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name("test-domain")
+                    .page(1)
+                    .build();
+            ListOrganizationPrivateDomainsResponse response1 = ListOrganizationPrivateDomainsResponse.builder()
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listPrivateDomains(request1)).thenReturn(Publishers.just(response1));
+
+            ListSharedDomainsRequest request2 = ListSharedDomainsRequest.builder()
+                    .name("test-domain")
+                    .page(1)
+                    .build();
+            ListSharedDomainsResponse response2 = ListSharedDomainsResponse.builder()
+                    .totalPages(1)
+                    .build();
+            when(this.sharedDomains.list(request2)).thenReturn(Publishers.just(response2));
+        }
+
+        @Override
+        protected void assertions(TestSubscriber<Void> testSubscriber) throws Exception {
+            testSubscriber.onComplete();
+        }
+
+        @Override
+        protected Publisher<Void> invoke() {
+            CreateRouteRequest request = CreateRouteRequest.builder()
+                    .domain("test-domain")
+                    .host("test-host")
+                    .space(TEST_SPACE_NAME)
+                    .build();
+
+            return this.routes.create(request);
+        }
+
+    }
+
+    public static final class CreateRouteInvalidHost extends AbstractOperationsApiTest<Void> {
+
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
+
+        @Before
+        public void setUp() throws Exception {
+            ListOrganizationSpacesRequest request0 = ListOrganizationSpacesRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name(TEST_SPACE_NAME)
+                    .page(1)
+                    .build();
+            ListOrganizationSpacesResponse response0 = ListOrganizationSpacesResponse.builder()
+                    .resource(SpaceResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id(TEST_SPACE_ID)
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listSpaces(request0)).thenReturn(Publishers.just(response0));
+
+            ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name("test-domain")
+                    .page(1)
+                    .build();
+            ListOrganizationPrivateDomainsResponse response1 = ListOrganizationPrivateDomainsResponse.builder()
+                    .resource(PrivateDomainResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id("test-domain-id")
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listPrivateDomains(request1)).thenReturn(Publishers.just(response1));
+
+            org.cloudfoundry.client.v2.routes.CreateRouteRequest request2 = org.cloudfoundry.client.v2.routes.CreateRouteRequest.builder()
+                    .domainId("test-domain-id")
+                    .host("test-host")
+                    .spaceId(TEST_SPACE_ID)
+                    .build();
+            when(this.cloudFoundryClient.routes().create(request2)).thenReturn(Publishers.<CreateRouteResponse>empty());
+        }
+
+        @Override
+        protected void assertions(TestSubscriber<Void> testSubscriber) throws Exception {
+            testSubscriber.onComplete();
+        }
+
+        @Override
+        protected Publisher<Void> invoke() {
+            CreateRouteRequest request = CreateRouteRequest.builder()
+                    .domain("test-domain")
+                    .host("test-host")
+                    .space(TEST_SPACE_NAME)
+                    .build();
+
+            return this.routes.create(request);
+        }
+
+    }
+
+    public static final class CreateRouteInvalidSpace extends AbstractOperationsApiTest<Void> {
+
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
+
+        @Before
+        public void setUp() throws Exception {
+            ListOrganizationSpacesRequest request0 = ListOrganizationSpacesRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name(TEST_SPACE_NAME)
+                    .page(1)
+                    .build();
+            ListOrganizationSpacesResponse response0 = ListOrganizationSpacesResponse.builder()
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listSpaces(request0)).thenReturn(Publishers.just(response0));
+        }
+
+        @Override
+        protected void assertions(TestSubscriber<Void> testSubscriber) throws Exception {
+            testSubscriber.onComplete();
+        }
+
+        @Override
+        protected Publisher<Void> invoke() {
+            CreateRouteRequest request = CreateRouteRequest.builder()
+                    .domain("test-domain")
+                    .host("test-host")
+                    .space(TEST_SPACE_NAME)
+                    .build();
+
+            return this.routes.create(request);
+        }
+
+    }
+
+    public static final class CreateRouteNoOrganization extends AbstractOperationsApiTest<Void> {
+
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, MISSING_ID, MISSING_ID);
+
+        @Override
+        protected void assertions(TestSubscriber<Void> testSubscriber) throws Exception {
+            testSubscriber
+                    .assertError(IllegalStateException.class);
+        }
+
+        @Override
+        protected Publisher<Void> invoke() {
+            CreateRouteRequest request = CreateRouteRequest.builder()
+                    .domain("test-domain")
+                    .host("test-host")
+                    .space(TEST_SPACE_NAME)
+                    .build();
+
+            return this.routes.create(request);
+        }
+
+    }
+
+    public static final class CreateRoutePrivateDomain extends AbstractOperationsApiTest<Void> {
+
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
+
+        @Before
+        public void setUp() throws Exception {
+            ListOrganizationSpacesRequest request0 = ListOrganizationSpacesRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name(TEST_SPACE_NAME)
+                    .page(1)
+                    .build();
+            ListOrganizationSpacesResponse response0 = ListOrganizationSpacesResponse.builder()
+                    .resource(SpaceResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id(TEST_SPACE_ID)
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listSpaces(request0)).thenReturn(Publishers.just(response0));
+
+            ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name("test-domain")
+                    .page(1)
+                    .build();
+            ListOrganizationPrivateDomainsResponse response1 = ListOrganizationPrivateDomainsResponse.builder()
+                    .resource(PrivateDomainResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id("test-domain-id")
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listPrivateDomains(request1)).thenReturn(Publishers.just(response1));
+
+            org.cloudfoundry.client.v2.routes.CreateRouteRequest request2 = org.cloudfoundry.client.v2.routes.CreateRouteRequest.builder()
+                    .domainId("test-domain-id")
+                    .host("test-host")
+                    .spaceId(TEST_SPACE_ID)
+                    .build();
+            when(this.cloudFoundryClient.routes().create(request2)).thenReturn(Publishers.<CreateRouteResponse>empty());
+        }
+
+        @Override
+        protected void assertions(TestSubscriber<Void> testSubscriber) throws Exception {
+            testSubscriber.onComplete();
+        }
+
+        @Override
+        protected Publisher<Void> invoke() {
+            CreateRouteRequest request = CreateRouteRequest.builder()
+                    .domain("test-domain")
+                    .host("test-host")
+                    .space(TEST_SPACE_NAME)
+                    .build();
+
+            return this.routes.create(request);
+        }
+
+    }
+
+    public static final class CreateRouteSharedDomain extends AbstractOperationsApiTest<Void> {
+
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
+
+        @Before
+        public void setUp() throws Exception {
+            ListOrganizationSpacesRequest request0 = ListOrganizationSpacesRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name(TEST_SPACE_NAME)
+                    .page(1)
+                    .build();
+            ListOrganizationSpacesResponse response0 = ListOrganizationSpacesResponse.builder()
+                    .resource(SpaceResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id(TEST_SPACE_ID)
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listSpaces(request0)).thenReturn(Publishers.just(response0));
+
+            ListOrganizationPrivateDomainsRequest request1 = ListOrganizationPrivateDomainsRequest.builder()
+                    .id(TEST_ORGANIZATION_ID)
+                    .name("test-domain")
+                    .page(1)
+                    .build();
+            ListOrganizationPrivateDomainsResponse response1 = ListOrganizationPrivateDomainsResponse.builder()
+                    .totalPages(1)
+                    .build();
+            when(this.organizations.listPrivateDomains(request1)).thenReturn(Publishers.just(response1));
+
+            ListSharedDomainsRequest request2 = ListSharedDomainsRequest.builder()
+                    .name("test-domain")
+                    .page(1)
+                    .build();
+            ListSharedDomainsResponse response2 = ListSharedDomainsResponse.builder()
+                    .resource(SharedDomainResource.builder()
+                            .metadata(Resource.Metadata.builder()
+                                    .id("test-domain-id")
+                                    .build())
+                            .build())
+                    .totalPages(1)
+                    .build();
+            when(this.sharedDomains.list(request2)).thenReturn(Publishers.just(response2));
+
+            org.cloudfoundry.client.v2.routes.CreateRouteRequest request3 = org.cloudfoundry.client.v2.routes.CreateRouteRequest.builder()
+                    .domainId("test-domain-id")
+                    .host("test-host")
+                    .spaceId(TEST_SPACE_ID)
+                    .build();
+            when(this.cloudFoundryClient.routes().create(request3)).thenReturn(Publishers.<CreateRouteResponse>empty());
+        }
+
+        @Override
+        protected void assertions(TestSubscriber<Void> testSubscriber) throws Exception {
+            testSubscriber.onComplete();
+        }
+
+        @Override
+        protected Publisher<Void> invoke() {
+            CreateRouteRequest request = CreateRouteRequest.builder()
+                    .domain("test-domain")
+                    .host("test-host")
+                    .space(TEST_SPACE_NAME)
+                    .build();
+
+            return this.routes.create(request);
+        }
+
+    }
+
     public static final class ListCurrentOrganization extends AbstractOperationsApiTest<Route> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), Streams.just(TEST_SPACE));
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), Streams.just(TEST_SPACE_ID));
 
         @Before
         public void setUp() throws Exception {
@@ -366,7 +682,7 @@ public final class DefaultRoutesTest {
 
     public static final class ListCurrentSpace extends AbstractOperationsApiTest<Route> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), Streams.just(TEST_SPACE));
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), Streams.just(TEST_SPACE_ID));
 
         @Before
         public void setUp() throws Exception {
@@ -468,7 +784,7 @@ public final class DefaultRoutesTest {
 
     public static final class ListCurrentSpaceNoSpace extends AbstractOperationsApiTest<Route> {
 
-        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION), MISSING_ID);
+        private final DefaultRoutes routes = new DefaultRoutes(this.cloudFoundryClient, Streams.just(TEST_ORGANIZATION_ID), MISSING_ID);
 
         @Override
         protected void assertions(TestSubscriber<Route> testSubscriber) throws Exception {
