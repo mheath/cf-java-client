@@ -16,26 +16,60 @@
 
 package org.cloudfoundry.operations;
 
+import org.cloudfoundry.client.CloudFoundryClient;
 import org.cloudfoundry.client.v2.Resource.Metadata;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationSpaceQuotaDefinitionsRequest;
 import org.cloudfoundry.client.v2.organizations.ListOrganizationSpaceQuotaDefinitionsResponse;
 import org.cloudfoundry.client.v2.spacequotadefinitions.SpaceQuotaDefinitionEntity;
 import org.cloudfoundry.client.v2.spacequotadefinitions.SpaceQuotaDefinitionResource;
+import org.cloudfoundry.operations.v2.TestPaginated;
 import org.cloudfoundry.utils.test.TestSubscriber;
 import org.junit.Before;
 import org.reactivestreams.Publisher;
-import reactor.Publishers;
+import reactor.fn.Function;
 import reactor.rx.Streams;
 
-import static org.mockito.Mockito.when;
 
 public final class DefaultSpaceQuotasTest {
 
-    private static ListOrganizationSpaceQuotaDefinitionsResponse getListOrganizationSpaceQuotaDefinitionsResponse(int page, int numPages) {
-        return ListOrganizationSpaceQuotaDefinitionsResponse.builder()
-                .resource(getSpaceQuotaDefinitionResource(page))
-                .totalPages(numPages)
-                .build();
+    private static Function<Integer, ListOrganizationSpaceQuotaDefinitionsRequest> getRequest(final String organization) {
+        return new Function<Integer, ListOrganizationSpaceQuotaDefinitionsRequest>() {
+
+            @Override
+            public ListOrganizationSpaceQuotaDefinitionsRequest apply(Integer page) {
+                return ListOrganizationSpaceQuotaDefinitionsRequest.builder()
+                        .id(organization)
+                        .page(page)
+                        .build();
+            }
+
+        };
+    }
+
+    private static Function<Integer, ListOrganizationSpaceQuotaDefinitionsResponse> getResponse(final int size) {
+        return new Function<Integer, ListOrganizationSpaceQuotaDefinitionsResponse>() {
+
+            @Override
+            public ListOrganizationSpaceQuotaDefinitionsResponse apply(Integer page) {
+                return ListOrganizationSpaceQuotaDefinitionsResponse.builder()
+                        .resource(SpaceQuotaDefinitionResource.builder()
+                                .metadata(Metadata.builder()
+                                        .id("test-id-" + page)
+                                        .build())
+                                .entity(SpaceQuotaDefinitionEntity.builder()
+                                        .instanceMemoryLimit(1024)
+                                        .memoryLimit(2048)
+                                        .name("test-name-" + page)
+                                        .nonBasicServicesAllowed(true)
+                                        .organizationId("test-org-id-" + page)
+                                        .totalRoutes(10)
+                                        .build())
+                                .build())
+                        .totalPages(size)
+                        .build();
+            }
+
+        };
     }
 
     private static SpaceQuota getSpaceQuota(int index) {
@@ -50,20 +84,15 @@ public final class DefaultSpaceQuotasTest {
                 .build();
     }
 
-    private static SpaceQuotaDefinitionResource getSpaceQuotaDefinitionResource(int resourceIndex) {
-        return SpaceQuotaDefinitionResource.builder()
-                .metadata(Metadata.builder()
-                        .id("test-id-" + resourceIndex)
-                        .build())
-                .entity(SpaceQuotaDefinitionEntity.builder()
-                        .instanceMemoryLimit(1024)
-                        .memoryLimit(2048)
-                        .name("test-name-" + resourceIndex)
-                        .nonBasicServicesAllowed(true)
-                        .organizationId("test-org-id-" + resourceIndex)
-                        .totalRoutes(10)
-                        .build())
-                .build();
+    private static Function<ListOrganizationSpaceQuotaDefinitionsRequest, Publisher<ListOrganizationSpaceQuotaDefinitionsResponse>> makeRequest(final CloudFoundryClient cloudFoundryClient) {
+        return new Function<ListOrganizationSpaceQuotaDefinitionsRequest, Publisher<ListOrganizationSpaceQuotaDefinitionsResponse>>() {
+
+            @Override
+            public Publisher<ListOrganizationSpaceQuotaDefinitionsResponse> apply(ListOrganizationSpaceQuotaDefinitionsRequest request) {
+                return cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request);
+            }
+
+        };
     }
 
     public static final class Get extends AbstractOperationsApiTest<SpaceQuota> {
@@ -72,19 +101,7 @@ public final class DefaultSpaceQuotasTest {
 
         @Before
         public void setUp() throws Exception {
-            ListOrganizationSpaceQuotaDefinitionsRequest request1 = ListOrganizationSpaceQuotaDefinitionsRequest.builder()
-                    .id(TEST_ORGANIZATION)
-                    .page(1)
-                    .build();
-            ListOrganizationSpaceQuotaDefinitionsResponse page1 = getListOrganizationSpaceQuotaDefinitionsResponse(1, 2);
-            when(this.cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request1)).thenReturn(Publishers.just(page1));
-
-            ListOrganizationSpaceQuotaDefinitionsRequest request2 = ListOrganizationSpaceQuotaDefinitionsRequest.builder()
-                    .id(TEST_ORGANIZATION)
-                    .page(2)
-                    .build();
-            ListOrganizationSpaceQuotaDefinitionsResponse page2 = getListOrganizationSpaceQuotaDefinitionsResponse(2, 2);
-            when(this.cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request2)).thenReturn(Publishers.just(page2));
+            TestPaginated.expectPages(getRequest(TEST_ORGANIZATION), getResponse(2), makeRequest(this.cloudFoundryClient));
         }
 
         @Override
@@ -95,9 +112,11 @@ public final class DefaultSpaceQuotasTest {
 
         @Override
         protected Publisher<SpaceQuota> invoke() {
-            return this.spaceQuotas.get(GetSpaceQuotaRequest.builder()
+            GetSpaceQuotaRequest request = GetSpaceQuotaRequest.builder()
                     .name("test-name-2")
-                    .build());
+                    .build();
+
+            return this.spaceQuotas.get(request);
         }
 
     }
@@ -133,9 +152,11 @@ public final class DefaultSpaceQuotasTest {
 
         @Override
         protected Publisher<SpaceQuota> invoke() {
-            return this.spaceQuotas.get(GetSpaceQuotaRequest.builder()
+            GetSpaceQuotaRequest request = GetSpaceQuotaRequest.builder()
                     .name("test-name-2")
-                    .build());
+                    .build();
+
+            return this.spaceQuotas.get(request);
         }
 
     }
@@ -146,20 +167,7 @@ public final class DefaultSpaceQuotasTest {
 
         @Before
         public void setUp() throws Exception {
-            ListOrganizationSpaceQuotaDefinitionsRequest request1 = ListOrganizationSpaceQuotaDefinitionsRequest.builder()
-                    .id(TEST_ORGANIZATION)
-                    .page(1)
-                    .build();
-
-            ListOrganizationSpaceQuotaDefinitionsResponse page1 = getListOrganizationSpaceQuotaDefinitionsResponse(1, 2);
-            when(this.cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request1)).thenReturn(Publishers.just(page1));
-
-            ListOrganizationSpaceQuotaDefinitionsRequest request2 = ListOrganizationSpaceQuotaDefinitionsRequest.builder()
-                    .id(TEST_ORGANIZATION)
-                    .page(2)
-                    .build();
-            ListOrganizationSpaceQuotaDefinitionsResponse page2 = getListOrganizationSpaceQuotaDefinitionsResponse(2, 2);
-            when(this.cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request2)).thenReturn(Publishers.just(page2));
+            TestPaginated.expectPages(getRequest(TEST_ORGANIZATION), getResponse(2), makeRequest(this.cloudFoundryClient));
         }
 
         @Override
@@ -169,9 +177,11 @@ public final class DefaultSpaceQuotasTest {
 
         @Override
         protected Publisher<SpaceQuota> invoke() {
-            return this.spaceQuotas.get(GetSpaceQuotaRequest.builder()
+            GetSpaceQuotaRequest request = GetSpaceQuotaRequest.builder()
                     .name("test-name-0")
-                    .build());
+                    .build();
+
+            return this.spaceQuotas.get(request);
         }
 
     }
@@ -182,19 +192,7 @@ public final class DefaultSpaceQuotasTest {
 
         @Before
         public void setUp() throws Exception {
-            ListOrganizationSpaceQuotaDefinitionsRequest request1 = ListOrganizationSpaceQuotaDefinitionsRequest.builder()
-                    .id(TEST_ORGANIZATION)
-                    .page(1)
-                    .build();
-            ListOrganizationSpaceQuotaDefinitionsResponse page1 = getListOrganizationSpaceQuotaDefinitionsResponse(1, 2);
-            when(this.cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request1)).thenReturn(Publishers.just(page1));
-
-            ListOrganizationSpaceQuotaDefinitionsRequest request2 = ListOrganizationSpaceQuotaDefinitionsRequest.builder()
-                    .id(TEST_ORGANIZATION)
-                    .page(2)
-                    .build();
-            ListOrganizationSpaceQuotaDefinitionsResponse page2 = getListOrganizationSpaceQuotaDefinitionsResponse(2, 2);
-            when(this.cloudFoundryClient.organizations().listSpaceQuotaDefinitions(request2)).thenReturn(Publishers.just(page2));
+            TestPaginated.expectPages(getRequest(TEST_ORGANIZATION), getResponse(2), makeRequest(this.cloudFoundryClient));
         }
 
         @Override
