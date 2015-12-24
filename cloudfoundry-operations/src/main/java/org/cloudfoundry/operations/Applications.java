@@ -17,6 +17,7 @@
 package org.cloudfoundry.operations;
 
 import org.reactivestreams.Publisher;
+import reactor.Mono;
 
 /**
  * Main entry point to the Cloud Foundry Applications Operations API
@@ -29,5 +30,13 @@ public interface Applications {
      * @return the applications
      */
     Publisher<Application> list();
+
+    /**
+     * Gets information for a specific application
+     * 
+     * @param request the get application request
+     * @return the application
+     */
+    Mono<Application> get(GetApplicationRequest request);
 
 }
