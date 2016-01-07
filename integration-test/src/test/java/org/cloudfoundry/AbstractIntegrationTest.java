@@ -23,6 +23,8 @@ import org.cloudfoundry.client.v2.domains.DeleteDomainRequest;
 import org.cloudfoundry.client.v2.domains.ListDomainsRequest;
 import org.cloudfoundry.client.v2.routes.DeleteRouteRequest;
 import org.cloudfoundry.client.v2.routes.ListRoutesRequest;
+import org.cloudfoundry.client.v2.spaces.DeleteSpaceRequest;
+import org.cloudfoundry.client.v2.spaces.ListSpacesRequest;
 import org.cloudfoundry.operations.CloudFoundryOperations;
 import org.cloudfoundry.operations.v2.Paginated;
 import org.cloudfoundry.operations.v2.Resources;
@@ -70,6 +72,7 @@ public abstract class AbstractIntegrationTest {
         cleanupApplications(this.cloudFoundryClient)
                 .after(() -> cleanupRoutes(this.cloudFoundryClient))
                 .after(() -> cleanupDomains(this.cloudFoundryClient))
+                .after(() -> cleanupSpaces(this.spaceId, this.cloudFoundryClient))
                 .doOnSubscribe(s -> this.logger.debug(">> CLEANUP <<"))
                 .doOnComplete(() -> this.logger.debug("<< CLEANUP >>"))
                 .after()
@@ -148,6 +151,28 @@ public abstract class AbstractIntegrationTest {
                             .build();
 
                     return cloudFoundryClient.routes().delete(request);
+                });
+    }
+
+    private static Stream<Void> cleanupSpaces(Mono<String> spaceId, CloudFoundryClient cloudFoundryClient) {
+        return Paginated
+                .requestResources(page -> {
+                    ListSpacesRequest request = ListSpacesRequest.builder()
+                            .page(page)
+                            .build();
+
+                    return cloudFoundryClient.spaces().list(request);
+                })
+                .filter(response -> {
+                    String id = Resources.getId(response);
+                    return !id.equals(spaceId.defaultIfEmpty("").get());
+                })
+                .flatMap(response -> {
+                    DeleteSpaceRequest request = DeleteSpaceRequest.builder()
+                            .id(Resources.getId(response))
+                            .build();
+
+                    return cloudFoundryClient.spaces().delete(request);
                 });
     }
 
